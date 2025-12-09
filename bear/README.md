@@ -2,152 +2,101 @@
 
 Talk to a teddy bear, ask about your donut store data, get spoken answers!
 
-## Hardware Requirements
+## Quick Setup on Raspberry Pi
 
-- Raspberry Pi (3B+ or newer recommended)
-- USB Microphone or USB sound card with mic
-- Speaker (3.5mm jack or USB)
-- Your teddy bear to put it all in! 🧸
-
-## Quick Setup
-
-### 1. SSH into your Raspberry Pi
+### 1. Install system dependencies
 
 ```bash
-ssh your-username@your-pi-address
+sudo apt update
+sudo apt install -y git ffmpeg libportaudio2
 ```
 
-### 2. Install system dependencies
+### 2. Install uv (fast Python package manager)
 
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install audio libraries
-sudo apt install -y python3-pip python3-venv portaudio19-dev python3-pyaudio
-
-# Test your audio devices
-arecord -l  # List recording devices
-aplay -l    # List playback devices
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
 ```
 
-### 3. Clone and set up the project
+### 3. Clone the repo
 
 ```bash
-# Navigate to project
-cd /path/to/snowbear/bear
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+cd ~
+git clone https://github.com/sfc-gh-trichards/snowbear.git
+cd snowbear/bear
 ```
 
-### 4. Configure API Keys
+### 4. Set up Python environment
 
-Edit the `.env` file in the parent directory (`snowbear/.env`):
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
 
-```env
-# OpenAI - for GPT-4 and TTS
+### 5. Create your `.env` file
+
+```bash
+nano ~/snowbear/.env
+```
+
+Add your keys:
+```
 OPENAI_API_KEY=sk-...
-
-# Deepgram - for fast speech-to-text
-DEEPGRAM_API_KEY=...
-
-# Snowflake - your existing config
 SNOWFLAKE_ACCOUNT_URL=https://your-account.snowflakecomputing.com
-SNOWFLAKE_PAT=your-programmatic-access-token
+SNOWFLAKE_PAT=your-token
 SNOWFLAKE_AGENT_DATABASE=SNOWFLAKE_INTELLIGENCE
 SNOWFLAKE_AGENT_SCHEMA=AGENTS
 SNOWFLAKE_AGENT_NAME=DONUT_STORE_AGENT
 ```
 
-### 5. Test your microphone and speaker
-
-```bash
-# Record 5 seconds of audio
-arecord -d 5 test.wav
-
-# Play it back
-aplay test.wav
-```
+Save: `Ctrl+O`, Enter, `Ctrl+X`
 
 ### 6. Run the bear!
 
 ```bash
-source venv/bin/activate
+cd ~/snowbear/bear
+source .venv/bin/activate
 python bear.py
 ```
 
-## Getting API Keys
+## APIs Needed
 
-### OpenAI
-1. Go to https://platform.openai.com/api-keys
-2. Create a new API key
-3. Add funds to your account (~$10 is plenty for testing)
+| API | What it does | Cost |
+|-----|--------------|------|
+| **OpenAI** | Whisper (STT) + GPT-4o + TTS | ~$5-10 for hackathon |
+| **Snowflake** | Your data queries | You have this |
 
-### Deepgram
-1. Go to https://console.deepgram.com/
-2. Sign up (free tier includes $200 credit!)
-3. Create an API key
+Get OpenAI key: https://platform.openai.com/api-keys
+
+## How It Works
+
+```
+[Microphone] → [Whisper STT] → [GPT-4o] → [Snowflake] → [GPT-4o] → [TTS] → [Speaker]
+```
+
+1. You speak into the microphone
+2. OpenAI Whisper transcribes your speech
+3. GPT-4o understands your question and asks clarifying questions if needed
+4. When ready, it queries your Snowflake Cortex Agent
+5. GPT-4o formats the response conversationally
+6. OpenAI TTS speaks the answer through your speaker
 
 ## Troubleshooting
 
-### "No audio devices found"
+### No audio input detected
 ```bash
-# Check if your mic is detected
-arecord -l
+# List audio devices
+python -c "import sounddevice; print(sounddevice.query_devices())"
 
-# If using USB mic, try unplugging and replugging
-# Check dmesg for USB audio
-dmesg | grep -i audio
+# Test recording
+arecord -d 3 test.wav && aplay test.wav
 ```
 
-### Audio too quiet / too loud
+### ffplay not found
 ```bash
-# Adjust mic volume
-alsamixer
-# Use F6 to select your sound card, then adjust levels
+sudo apt install ffmpeg
 ```
 
-### Snowflake connection issues
-Make sure your Pi can reach your Snowflake account. If you have network policies enabled in Snowflake, you may need to allowlist your Pi's IP address.
-
-## Architecture
-
-```
-[Microphone] 
-    ↓
-[Silero VAD] - Detects when you're speaking
-    ↓
-[Deepgram STT] - Converts speech to text
-    ↓
-[GPT-4o] - Understands intent, asks clarifying questions
-    ↓ (when ready)
-[Snowflake Cortex Agent] - Queries your data
-    ↓
-[GPT-4o] - Formats response conversationally  
-    ↓
-[OpenAI TTS] - Converts to speech
-    ↓
-[Speaker]
-```
-
-## Tips for Hackathon Demo
-
-1. **Start simple**: Begin with basic questions like "How many donuts did we sell today?"
-2. **Prepare questions**: Have a list of interesting questions ready
-3. **Good lighting**: Make sure the bear is visible!
-4. **Test audio levels**: Do a sound check before demoing
-5. **Have a backup**: Keep your laptop ready to type if voice fails
-
-## Cost Estimate
-
-For a hackathon demo (~1 hour of usage):
-- OpenAI GPT-4o: ~$2-5
-- OpenAI TTS: ~$1-2  
-- Deepgram STT: Free tier covers it
-- **Total: ~$5-10**
-
+### Adjust microphone sensitivity
+Edit `bear.py` and change `SILENCE_THRESHOLD` (default 0.01). Higher = less sensitive.

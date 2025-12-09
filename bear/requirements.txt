@@ -1,14 +1,13 @@
-# Pipecat Voice AI Framework
-pipecat-ai[silero,openai,daily]>=0.0.43
-
-# Audio handling
-pyaudio>=0.2.14
+# Audio
+sounddevice>=0.4.6
 numpy>=1.24.0
+scipy>=1.11.0
+
+# OpenAI for STT, LLM, and TTS
+openai>=1.40.0
 
 # Snowflake API calls
 httpx>=0.27.0
+
+# Environment variables
 python-dotenv>=1.0.0
-
-# For Pi GPIO (optional - for button trigger)
-# RPi.GPIO>=0.7.1
-
