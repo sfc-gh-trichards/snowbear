@@ -4,6 +4,7 @@ Handles communication with your Snowflake data agent
 """
 
 import os
+import uuid
 import httpx
 from typing import Optional
 
@@ -27,13 +28,28 @@ class SnowflakeAgent:
 
     async def create_thread(self, client: httpx.AsyncClient) -> str:
         """Create a new conversation thread"""
-        resp = await client.post(
-            f"{self.account_url}/api/v2/cortex/threads",
-            headers=self.headers,
-            json={"origin_application": "SnowbearPi"},
-        )
-        resp.raise_for_status()
-        return resp.json()["id"]
+        try:
+            resp = await client.post(
+                f"{self.account_url}/api/v2/cortex/threads",
+                headers=self.headers,
+                json={"origin_application": "SnowbearPi"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # Handle different response formats
+            if "id" in data:
+                return data["id"]
+            elif "thread_id" in data:
+                return data["thread_id"]
+            elif isinstance(data, dict) and len(data) == 1:
+                return list(data.values())[0]
+            else:
+                print(f"   ⚠️ Thread response: {data}")
+                # Fall back to UUID
+                return str(uuid.uuid4())
+        except Exception as e:
+            print(f"   ⚠️ Thread creation failed ({e}), using UUID")
+            return str(uuid.uuid4())
 
     async def query(self, user_text: str) -> str:
         """
@@ -75,6 +91,7 @@ class SnowflakeAgent:
             sse_text = resp.text
             final_response = None
             last_event = None
+            all_events = []  # For debugging
             
             for line in sse_text.split("\n"):
                 line = line.strip()
@@ -83,15 +100,26 @@ class SnowflakeAgent:
                     
                 if line.startswith("event:"):
                     last_event = line[6:].strip()
+                    all_events.append(last_event)
                 elif line.startswith("data:"):
-                    if last_event == "response":
-                        data_str = line[5:].strip()
-                        if data_str:
-                            import json
-                            final_response = json.loads(data_str)
-                            break
+                    data_str = line[5:].strip()
+                    if data_str:
+                        import json
+                        try:
+                            parsed = json.loads(data_str)
+                            # Look for text content in any event
+                            if last_event == "response":
+                                final_response = parsed
+                                break
+                            # Also check for content in other events
+                            if isinstance(parsed, dict) and "content" in parsed:
+                                final_response = parsed
+                        except json.JSONDecodeError:
+                            pass
             
             if not final_response:
+                print(f"   ⚠️ Events received: {all_events}")
+                print(f"   ⚠️ Raw response (first 500 chars): {sse_text[:500]}")
                 raise ValueError("No response from Snowflake agent")
             
             # Extract text content
