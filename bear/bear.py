@@ -46,8 +46,9 @@ SAMPLE_RATE = get_sample_rate()
 print(f"📢 Using sample rate: {SAMPLE_RATE} Hz")
 
 CHANNELS = 1
-SILENCE_THRESHOLD = 0.01  # Adjust based on your mic
-SILENCE_DURATION = 1.5  # Seconds of silence to stop recording
+SILENCE_THRESHOLD = 0.015  # Adjust based on your mic (higher = less sensitive)
+SILENCE_DURATION = 0.8  # Seconds of silence AFTER speech to stop recording
+MIN_SPEECH_DURATION = 0.3  # Minimum speech before we start looking for silence
 MAX_RECORDING_DURATION = 30  # Max seconds to record
 
 # System prompt for the bear
@@ -96,35 +97,57 @@ conversation_history = [{"role": "system", "content": SYSTEM_PROMPT}]
 
 
 def record_audio() -> np.ndarray:
-    """Record audio from microphone until silence is detected."""
+    """Record audio from microphone until silence is detected after speech."""
     print("🎤 Listening... (speak now)")
     
     audio_chunks = []
     silent_chunks = 0
-    chunks_for_silence = int(SILENCE_DURATION * SAMPLE_RATE / 1024)
-    max_chunks = int(MAX_RECORDING_DURATION * SAMPLE_RATE / 1024)
+    speech_chunks = 0
+    speech_started = False
+    
+    chunk_duration = 1024 / SAMPLE_RATE  # Duration of each chunk in seconds
+    chunks_for_silence = int(SILENCE_DURATION / chunk_duration)
+    chunks_for_min_speech = int(MIN_SPEECH_DURATION / chunk_duration)
+    max_chunks = int(MAX_RECORDING_DURATION / chunk_duration)
     
     def callback(indata, frames, time, status):
-        nonlocal silent_chunks
+        nonlocal silent_chunks, speech_chunks, speech_started
         if status:
             print(f"Audio status: {status}")
         
         volume = np.abs(indata).mean()
-        if volume < SILENCE_THRESHOLD:
-            silent_chunks += 1
-        else:
+        
+        if volume >= SILENCE_THRESHOLD:
+            # Speech detected
+            speech_chunks += 1
             silent_chunks = 0
+            if speech_chunks >= chunks_for_min_speech:
+                if not speech_started:
+                    print("   📢 Speech detected...")
+                speech_started = True
+        else:
+            # Silence
+            if speech_started:
+                silent_chunks += 1
         
         audio_chunks.append(indata.copy())
     
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, 
                         dtype='float32', blocksize=1024, callback=callback):
-        while silent_chunks < chunks_for_silence and len(audio_chunks) < max_chunks:
-            sd.sleep(100)
+        while len(audio_chunks) < max_chunks:
+            # Only stop after speech has started AND we've had enough silence
+            if speech_started and silent_chunks >= chunks_for_silence:
+                break
+            sd.sleep(50)  # Check more frequently
     
-    if len(audio_chunks) < 5:  # Too short
+    if not speech_started or speech_chunks < chunks_for_min_speech:
         print("   (no speech detected)")
         return np.array([])
+    
+    # Trim trailing silence (keep just a little bit)
+    keep_silent_chunks = int(0.2 / chunk_duration)  # Keep 0.2s of trailing silence
+    if silent_chunks > keep_silent_chunks:
+        audio_chunks = audio_chunks[:-(silent_chunks - keep_silent_chunks)]
     
     print("   ✓ Got it!")
     return np.concatenate(audio_chunks)
