@@ -10,6 +10,7 @@ import asyncio
 import io
 import json
 import os
+import random
 import sys
 import tempfile
 import wave
@@ -183,11 +184,26 @@ def transcribe_audio(audio: np.ndarray) -> str:
         os.unlink(temp_path)
 
 
-async def handle_function_call(function_name: str, arguments: dict) -> str:
+THINKING_PHRASES = [
+    "Great question! Let me dig into the data for you.",
+    "Ooh, that's a good one! Give me just a moment to look that up.",
+    "Let me check that for you real quick.",
+    "Interesting! Let me dive into the numbers.",
+    "Bear with me while I fetch that data!",
+    "On it! Just a sec while I crunch those numbers.",
+    "Good thinking! Let me see what the data says.",
+]
+
+
+async def handle_function_call(function_name: str, arguments: dict, speak_func) -> str:
     """Execute a function call from the LLM."""
     if function_name == "query_data":
         question = arguments.get("question", "")
         print(f"   🔍 Querying Snowflake: {question}")
+        
+        # Say a thinking phrase while we query
+        thinking_phrase = random.choice(THINKING_PHRASES)
+        speak_func(thinking_phrase)
         
         try:
             result = await query_snowflake(question)
@@ -200,7 +216,7 @@ async def handle_function_call(function_name: str, arguments: dict) -> str:
     return "Unknown function"
 
 
-async def get_response(user_text: str) -> str:
+async def get_response(user_text: str, speak_func) -> str:
     """Get a response from GPT-4, handling any function calls."""
     conversation_history.append({"role": "user", "content": user_text})
     
@@ -222,7 +238,7 @@ async def get_response(user_text: str) -> str:
             function_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
             
-            result = await handle_function_call(function_name, arguments)
+            result = await handle_function_call(function_name, arguments, speak_func)
             
             conversation_history.append({
                 "role": "tool",
@@ -303,7 +319,7 @@ async def main():
             
             # Get response
             print("   🤔 Thinking...")
-            response_text = await get_response(user_text)
+            response_text = await get_response(user_text, speak)
             
             # Speak response
             speak(response_text)
