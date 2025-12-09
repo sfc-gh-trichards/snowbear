@@ -29,8 +29,22 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Audio settings
-SAMPLE_RATE = 16000  # Whisper likes 16kHz
+# Audio settings - detect supported sample rate
+def get_sample_rate():
+    """Find a sample rate that works with the device."""
+    for rate in [16000, 44100, 48000, 22050]:
+        try:
+            sd.check_input_settings(samplerate=rate, channels=1)
+            return rate
+        except Exception:
+            continue
+    # Fallback to device default
+    device_info = sd.query_devices(kind='input')
+    return int(device_info['default_samplerate'])
+
+SAMPLE_RATE = get_sample_rate()
+print(f"📢 Using sample rate: {SAMPLE_RATE} Hz")
+
 CHANNELS = 1
 SILENCE_THRESHOLD = 0.01  # Adjust based on your mic
 SILENCE_DURATION = 1.5  # Seconds of silence to stop recording
@@ -121,12 +135,18 @@ def transcribe_audio(audio: np.ndarray) -> str:
     if len(audio) == 0:
         return ""
     
+    # Resample to 16kHz if needed (Whisper expects 16kHz)
+    if SAMPLE_RATE != 16000:
+        from scipy import signal
+        num_samples = int(len(audio) * 16000 / SAMPLE_RATE)
+        audio = signal.resample(audio, num_samples)
+    
     # Save to temporary WAV file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         temp_path = f.name
         # Convert float32 to int16
         audio_int16 = (audio * 32767).astype(np.int16)
-        wavfile.write(temp_path, SAMPLE_RATE, audio_int16)
+        wavfile.write(temp_path, 16000, audio_int16)  # Always 16kHz for Whisper
     
     try:
         with open(temp_path, "rb") as audio_file:
