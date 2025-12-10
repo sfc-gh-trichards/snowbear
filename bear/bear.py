@@ -194,22 +194,44 @@ THINKING_PHRASES = [
 ]
 
 
+def reformat_question(user_text: str) -> str:
+    """Use GPT-4 to clean up and clarify the user's question for the database."""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": """You reformulate casual spoken questions into clear, specific database queries.
+Remove filler words (um, like, so, you know), fix grammar, and make the question precise.
+Keep it as a natural language question - don't convert to SQL.
+If the question mentions relative time like "last year", convert to the actual year (current year is 2024, so last year = 2023).
+Output ONLY the reformulated question, nothing else."""},
+            {"role": "user", "content": user_text}
+        ],
+        max_tokens=150
+    )
+    return response.choices[0].message.content.strip()
+
+
 async def get_response(user_text: str, speak_func) -> str:
     """
-    Immediately query Snowflake, speak a thinking phrase while waiting,
-    then format the response with GPT-4.
+    Reformat question with GPT-4, query Snowflake, speak thinking phrase while waiting,
+    then format the response.
     """
     import threading
+    
+    # First, quickly reformat the question
+    print(f"   📝 Original: \"{user_text}\"")
+    clean_question = reformat_question(user_text)
+    print(f"   ✨ Reformatted: \"{clean_question}\"")
     
     # Start speaking the thinking phrase in a separate thread (non-blocking)
     thinking_phrase = random.choice(THINKING_PHRASES)
     speech_thread = threading.Thread(target=speak_func, args=(thinking_phrase,))
     speech_thread.start()
     
-    # Immediately query Snowflake (runs in parallel with speech)
-    print(f"   🔍 Querying Snowflake: {user_text}")
+    # Query Snowflake with the clean question (runs in parallel with speech)
+    print(f"   🔍 Querying Snowflake...")
     try:
-        snowflake_result = await query_snowflake(user_text)
+        snowflake_result = await query_snowflake(clean_question)
         print(f"   ✅ Got data!")
     except Exception as e:
         print(f"   ❌ Snowflake error: {e}")
@@ -220,6 +242,7 @@ async def get_response(user_text: str, speak_func) -> str:
     
     # Now use GPT-4 to format the response nicely
     format_prompt = f"""The user asked: "{user_text}"
+(Interpreted as: "{clean_question}")
 
 Here is the data from the database:
 {snowflake_result}
@@ -247,7 +270,7 @@ def speak(text: str):
         input=text
     )
     
-    # Save to temp file
+    # Save to temp fileI
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         mp3_path = f.name
         f.write(response.content)
