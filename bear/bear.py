@@ -194,70 +194,47 @@ THINKING_PHRASES = [
 ]
 
 
-async def handle_function_call(function_name: str, arguments: dict, speak_func) -> str:
-    """Execute a function call from the LLM."""
-    if function_name == "query_data":
-        question = arguments.get("question", "")
-        print(f"   🔍 Querying Snowflake: {question}")
-        
-        # Say a thinking phrase while we query
-        thinking_phrase = random.choice(THINKING_PHRASES)
-        speak_func(thinking_phrase)
-        
-        try:
-            result = await query_snowflake(question)
-            print(f"   ✅ Got data!")
-            return result
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-            return f"Error querying data: {str(e)}"
-    
-    return "Unknown function"
-
-
 async def get_response(user_text: str, speak_func) -> str:
-    """Get a response from GPT-4, handling any function calls."""
-    conversation_history.append({"role": "user", "content": user_text})
+    """
+    Immediately query Snowflake, speak a thinking phrase while waiting,
+    then format the response with GPT-4.
+    """
+    import threading
     
-    # First API call
+    # Start speaking the thinking phrase in a separate thread (non-blocking)
+    thinking_phrase = random.choice(THINKING_PHRASES)
+    speech_thread = threading.Thread(target=speak_func, args=(thinking_phrase,))
+    speech_thread.start()
+    
+    # Immediately query Snowflake (runs in parallel with speech)
+    print(f"   🔍 Querying Snowflake: {user_text}")
+    try:
+        snowflake_result = await query_snowflake(user_text)
+        print(f"   ✅ Got data!")
+    except Exception as e:
+        print(f"   ❌ Snowflake error: {e}")
+        snowflake_result = f"Error querying data: {str(e)}"
+    
+    # Wait for the thinking phrase to finish speaking
+    speech_thread.join()
+    
+    # Now use GPT-4 to format the response nicely
+    format_prompt = f"""The user asked: "{user_text}"
+
+Here is the data from the database:
+{snowflake_result}
+
+Please provide a friendly, conversational response explaining this data. Keep it concise (2-3 sentences) since it will be spoken aloud. You can include a snow-related pun if appropriate."""
+
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=conversation_history,
-        tools=TOOLS,
-        tool_choice="auto"
+        messages=[
+            {"role": "system", "content": "You are Snowbear, a friendly data assistant. Format data responses in a warm, conversational way suitable for speaking aloud."},
+            {"role": "user", "content": format_prompt}
+        ]
     )
     
-    message = response.choices[0].message
-    
-    # Handle function calls
-    while message.tool_calls:
-        conversation_history.append(message)
-        
-        for tool_call in message.tool_calls:
-            function_name = tool_call.function.name
-            arguments = json.loads(tool_call.function.arguments)
-            
-            result = await handle_function_call(function_name, arguments, speak_func)
-            
-            conversation_history.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result
-            })
-        
-        # Get next response
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=conversation_history,
-            tools=TOOLS,
-            tool_choice="auto"
-        )
-        message = response.choices[0].message
-    
-    assistant_text = message.content
-    conversation_history.append({"role": "assistant", "content": assistant_text})
-    
-    return assistant_text
+    return response.choices[0].message.content
 
 
 def speak(text: str):
