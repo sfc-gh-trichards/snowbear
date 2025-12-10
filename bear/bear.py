@@ -271,16 +271,21 @@ def speak(text: str):
         input=text
     )
     
-    # Save to temp file and play
+    # Save to temp file
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-        temp_path = f.name
-        response.stream_to_file(temp_path)
+        mp3_path = f.name
+        response.stream_to_file(mp3_path)
     
+    # Convert to WAV and play with aplay (more reliable on Pi)
+    wav_path = mp3_path.replace(".mp3", ".wav")
     try:
-        # Use ffmpeg to convert and play (most reliable on Pi)
-        os.system(f"ffplay -nodisp -autoexit -loglevel quiet {temp_path}")
+        os.system(f"ffmpeg -i {mp3_path} -y -loglevel quiet {wav_path}")
+        os.system(f"aplay -q {wav_path}")
     finally:
-        os.unlink(temp_path)
+        if os.path.exists(mp3_path):
+            os.unlink(mp3_path)
+        if os.path.exists(wav_path):
+            os.unlink(wav_path)
 
 
 async def main():
