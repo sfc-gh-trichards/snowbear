@@ -20,6 +20,7 @@ import numpy as np
 import sounddevice as sd
 from scipy.io import wavfile
 from openai import OpenAI
+from elevenlabs import ElevenLabs
 from dotenv import load_dotenv
 
 from snowflake_client import query_snowflake
@@ -29,6 +30,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Initialize ElevenLabs client (for Zachary's voice!)
+eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_LABS_KEY"))
+ZACHARY_VOICE_ID = "tCtRt73EViFlCyrN9W7u"
 
 # Audio settings - detect supported sample rate
 def get_sample_rate():
@@ -273,19 +278,21 @@ def set_system_volume():
 
 
 def speak(text: str):
-    """Convert text to speech and play it."""
-    print(f"🔊 Speaking: {text[:80]}...")
+    """Convert text to speech using ElevenLabs (Zachary's voice!) and play it."""
+    print(f"🔊 Speaking (as Zachary): {text[:80]}...")
     
-    response = client.audio.speech.create(
-        model="tts-1",
-        voice="nova",  # Friendly voice for the bear
-        input=text
+    # Generate audio with ElevenLabs
+    audio_generator = eleven_client.text_to_speech.convert(
+        voice_id=ZACHARY_VOICE_ID,
+        text=text,
+        model_id="eleven_multilingual_v2",  # High quality model
     )
     
     # Save to temp file
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         mp3_path = f.name
-        f.write(response.content)
+        for chunk in audio_generator:
+            f.write(chunk)
     
     # Convert to WAV with volume boost and play with aplay
     wav_path = mp3_path.replace(".mp3", ".wav")
