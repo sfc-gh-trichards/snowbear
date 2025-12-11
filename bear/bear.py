@@ -265,8 +265,7 @@ Please provide a friendly, conversational response explaining this data. Keep it
     return response.choices[0].message.content
 
 
-VOLUME_BOOST = 2.5  # Amplify audio by 2.5x (adjust if needed: 1.0 = normal, 3.0 = very loud)
-
+VOLUME_BOOST = 1.0 
 
 def set_system_volume():
     """Set system volume to maximum at startup."""
