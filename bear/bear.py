@@ -284,7 +284,13 @@ def speak(text: str):
     audio_generator = eleven_client.text_to_speech.convert(
         voice_id=ZACHARY_VOICE_ID,
         text=text,
-        model_id="eleven_multilingual_v2",  # High quality model
+        model_id="eleven_multilingual_v2",
+        voice_settings={
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "style": 0.25,  # 25% style exaggeration
+            "use_speaker_boost": True,
+        },
     )
     
     # Save to temp file
