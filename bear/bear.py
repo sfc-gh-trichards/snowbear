@@ -189,13 +189,12 @@ def transcribe_audio(audio: np.ndarray) -> str:
 
 
 THINKING_PHRASES = [
-    "Great question! Let me dig into the data for you.",
-    "Ooh, that's a good one! Give me just a moment to look that up.",
-    "Let me check that for you real quick.",
-    "Snow problem! Let me dive into those numbers.",
-    "Cool question! Let me flurry through the data.",
-    "On it! Just a sec while I crunch those numbers.",
-    "Ice to hear that question! Let me see what the data says.",
+    "Great question! This might take me a moment. I'll speak up when I finish my analysis.",
+    "Ooh, that's a good one! Give me a bit to dig into the data. I'll let you know when I have the answer.",
+    "Snow problem! This will take a little while. I'll chime in when I'm done crunching the numbers.",
+    "Cool question! Let me analyze that for you. Sit tight and I'll speak up when I'm ready.",
+    "On it! This might take a moment. I'll get back to you when I've finished my analysis.",
+    "Ice one! Let me dive into the data. I'll speak up once I've got your answer.",
 ]
 
 
