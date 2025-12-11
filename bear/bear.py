@@ -260,6 +260,18 @@ Please provide a friendly, conversational response explaining this data. Keep it
     return response.choices[0].message.content
 
 
+VOLUME_BOOST = 2.5  # Amplify audio by 2.5x (adjust if needed: 1.0 = normal, 3.0 = very loud)
+
+
+def set_system_volume():
+    """Set system volume to maximum at startup."""
+    os.system("amixer set Master 100% unmute 2>/dev/null")
+    os.system("amixer set PCM 100% unmute 2>/dev/null")
+    os.system("amixer set Headphone 100% unmute 2>/dev/null")
+    os.system("amixer set Speaker 100% unmute 2>/dev/null")
+    print(f"🔊 System volume set to 100%, software boost: {VOLUME_BOOST}x")
+
+
 def speak(text: str):
     """Convert text to speech and play it."""
     print(f"🔊 Speaking: {text[:80]}...")
@@ -270,15 +282,16 @@ def speak(text: str):
         input=text
     )
     
-    # Save to temp fileI
+    # Save to temp file
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         mp3_path = f.name
         f.write(response.content)
     
-    # Convert to WAV and play with aplay (more reliable on Pi)
+    # Convert to WAV with volume boost and play with aplay
     wav_path = mp3_path.replace(".mp3", ".wav")
     try:
-        os.system(f"ffmpeg -i {mp3_path} -y -loglevel quiet {wav_path}")
+        # Use ffmpeg to amplify the audio
+        os.system(f"ffmpeg -i {mp3_path} -y -filter:a 'volume={VOLUME_BOOST}' -loglevel quiet {wav_path}")
         os.system(f"aplay -q {wav_path}")
     finally:
         if os.path.exists(mp3_path):
@@ -299,6 +312,9 @@ async def main():
     print("="*50)
     print("\nSpeak to ask questions about your donut store data!")
     print("Press Ctrl+C to exit.\n")
+    
+    # Set system volume to max
+    set_system_volume()
     
     # Initial greeting
     greeting = "Hi there! I'm Snowbear, your friendly data assistant. Ask me anything about your donut store, and I'll dig into the data for you!"
