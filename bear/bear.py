@@ -303,7 +303,10 @@ def speak(text: str):
     try:
         # Use ffmpeg to amplify the audio
         os.system(f"ffmpeg -i {mp3_path} -y -filter:a 'volume={VOLUME_BOOST}' -loglevel quiet {wav_path}")
-        os.system(f"aplay -q {wav_path}")
+        # Use plughw:2,0 for headphone jack on Pi (fallback to default if it fails)
+        result = os.system(f"aplay -D plughw:2,0 -q {wav_path}")
+        if result != 0:
+            os.system(f"aplay -q {wav_path}")
     finally:
         if os.path.exists(mp3_path):
             os.unlink(mp3_path)
