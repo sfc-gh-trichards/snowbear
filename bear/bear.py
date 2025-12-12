@@ -264,14 +264,17 @@ Please provide a friendly, conversational response explaining this data. Keep it
     return response.choices[0].message.content
 
 
-VOLUME_BOOST = 2.0
+VOLUME_BOOST = 3.0  # 3x volume boost
 
 def set_system_volume():
     """Set system volume to maximum at startup."""
+    # Try all possible volume controls
     os.system("amixer set Master 100% unmute 2>/dev/null")
     os.system("amixer set PCM 100% unmute 2>/dev/null")
     os.system("amixer set Headphone 100% unmute 2>/dev/null")
     os.system("amixer set Speaker 100% unmute 2>/dev/null")
+    # Specifically target card 2 (headphones on Pi)
+    os.system("amixer -c 2 set Headphone 100% unmute 2>/dev/null")
     print(f"🔊 System volume set to 100%, software boost: {VOLUME_BOOST}x")
 
 
@@ -301,8 +304,8 @@ def speak(text: str):
     # Convert to WAV with volume boost and play with aplay
     wav_path = mp3_path.replace(".mp3", ".wav")
     try:
-        # Use ffmpeg to amplify the audio
-        os.system(f"ffmpeg -i {mp3_path} -y -filter:a 'volume={VOLUME_BOOST}' -loglevel quiet {wav_path}")
+        # Use ffmpeg to amplify the audio (force 16-bit PCM WAV)
+        os.system(f"ffmpeg -i {mp3_path} -y -filter:a 'volume={VOLUME_BOOST}' -acodec pcm_s16le -ar 44100 -loglevel quiet {wav_path}")
         # Use plughw:2,0 for headphone jack on Pi (fallback to default if it fails)
         result = os.system(f"aplay -D plughw:2,0 -q {wav_path}")
         if result != 0:
