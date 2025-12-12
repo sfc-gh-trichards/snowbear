@@ -264,7 +264,7 @@ Please provide a friendly, conversational response explaining this data. Keep it
     return response.choices[0].message.content
 
 
-VOLUME_BOOST = 5.0  # 3x volume boost
+VOLUME_BOOST = 8.0  # 8x volume boost
 
 def set_system_volume():
     """Set system volume to maximum at startup."""
